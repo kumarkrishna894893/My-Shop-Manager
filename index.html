@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="hi">
+<<link rel="manifest" href="manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>दुकान स्टॉक मैनेजर - Shop Inventory App</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        header h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 16px;
+            border-bottom: 2px solid var(--bg);
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+        }
+
+        .search-bar {
+            margin-bottom: 16px;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .product-card {
+            background: var(--surface);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .product-img {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            background: #f1f5f9;
+        }
+
+        .product-info {
+            padding: 12px;
+            flex-grow: 1;
+        }
+
+        .product-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: 4px;
+        }
+
+        .product-price {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .stock-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .stock-normal { background: #dcfce7; color: #15803d; }
+        .stock-low { background: #fee2e2; color: #b91c1c; }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-qty {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            color: white;
+        }
+
+        .btn-in { background: var(--success); }
+        .btn-in:hover { background: #15803d; }
+
+        .btn-out { background: var(--danger); }
+        .btn-out:hover { background: #b91c1c; }
+
+        .btn-delete {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .btn-delete:hover {
+            background: var(--danger);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #94a3b8;
+            padding: 40px;
+            grid-column: 1 / -1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>दुकान स्टॉक मैनेजर</h1>
+        <p>सामान का हिसाब, इन/आउट और इमेज मैनेजमेंट</p>
+    </header>
+
+    <div class="grid">
+        <!-- Add Product Form -->
+        <div class="card">
+            <h2>नया प्रोडक्ट जोड़ें</h2>
+            <form id="productForm">
+                <div class="form-group">
+                    <label for="name">प्रोडक्ट का नाम</label>
+                    <input type="text" id="name" placeholder="उदा: Redmi Note 15 Pro" required>
+                </div>
+                <div class="form-group">
+                    <label for="price">कीमत (₹)</label>
+                    <input type="number" id="price" placeholder="उदा: 15000" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="quantity">शुरुआती मात्रा (Stock)</label>
+                    <input type="number" id="quantity" placeholder="उदा: 10" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="image">इमेज का लिंक (URL)</label>
+                    <input type="url" id="image" placeholder="https://example.com/photo.jpg">
+                </div>
+                <button type="submit" class="btn">स्टॉक में जोड़ें</button>
+            </form>
+        </div>
+
+        <!-- Inventory List -->
+        <div>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="प्रोडक्ट खोजें..." onkeyup="filterProducts()">
+            </div>
+            <div class="products-grid" id="productsList">
+                <!-- Products will appear here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let products = JSON.parse(localStorage.getItem('shop_products')) || [];
+
+    const defaultImage = 'https://via.placeholder.com/200x140?text=No+Image';
+
+    function saveAndRender() {
+        localStorage.setItem('shop_products', JSON.stringify(products));
+        renderProducts();
+    }
+
+    document.getElementById('productForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('name').value;
+        const price = parseFloat(document.getElementById('price').value);
+        const quantity = parseInt(document.getElementById('quantity').value);
+        const image = document.getElementById('image').value || defaultImage;
+
+        const newProduct = {
+            id: Date.now(),
+            name,
+            price,
+            quantity,
+            image
+        };
+
+        products.unshift(newProduct);
+        saveAndRender();
+        this.reset();
+    });
+
+    function updateQuantity(id, change) {
+        products = products.map(p => {
+            if (p.id === id) {
+                const newQty = p.quantity + change;
+                return { ...p, quantity: newQty < 0 ? 0 : newQty };
+            }
+            return p;
+        });
+        saveAndRender();
+    }
+
+    function deleteProduct(id) {
+        if (confirm('क्या आप इस प्रोडक्ट को हटाना चाहते हैं?')) {
+            products = products.filter(p => p.id !== id);
+            saveAndRender();
+        }
+    }
+
+    function renderProducts(itemsToRender = products) {
+        const list = document.getElementById('productsList');
+        
+        if (itemsToRender.length === 0) {
+            list.innerHTML = '<div class="empty-state">कोई प्रोडक्ट नहीं मिला।</div>';
+            return;
+        }
+
+        list.innerHTML = itemsToRender.map(p => {
+            const isLowStock = p.quantity <= 5;
+            return `
+                <div class="product-card">
+                    <button class="btn-delete" onclick="deleteProduct(${p.id})">✕</button>
+                    <img src="${p.image}" class="product-img" onerror="this.src='${defaultImage}'" alt="${p.name}">
+                    <div class="product-info">
+                        <div class="product-title">${p.name}</div>
+                        <div class="product-price">₹${p.price.toLocaleString('hi-IN')}</div>
+                        <div class="stock-badge ${isLowStock ? 'stock-low' : 'stock-normal'}">
+                            स्टॉक: ${p.quantity} ${isLowStock ? '(कम है!)' : ''}
+                        </div>
+                        <div class="controls">
+                            <button class="btn-qty btn-out" onclick="updateQuantity(${p.id}, -1)" title="मात्रा घटाएं (Out)">-</button>
+                            <button class="btn-qty btn-in" onclick="updateQuantity(${p.id}, 1)" title="मात्रा बढ़ाएं (In)">+</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function filterProducts() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const filtered = products.filter(p => p.name.toLowerCase().includes(query));
+        renderProducts(filtered);
+    }
+
+    // Initial Load
+    renderProducts();
+</script>
+
+</body>
+</html>
